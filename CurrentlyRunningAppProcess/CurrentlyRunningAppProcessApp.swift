@@ -98,6 +98,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 struct CurrentlyRunningAppProcessApp {
     static func main() {
         let app = NSApplication.shared
+        app.setActivationPolicy(.accessory) // This hides the Dock icon
         let delegate = AppDelegate()
         app.delegate = delegate
         app.run()
