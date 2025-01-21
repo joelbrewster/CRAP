@@ -23,7 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Create floating window for icon
         iconWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 22, height: 22),
+            contentRect: NSRect(x: 0, y: 0, width: 24, height: 24),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -34,11 +34,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         iconWindow.isOpaque = false
         iconWindow.hasShadow = false
         iconWindow.ignoresMouseEvents = true
-        iconWindow.titlebarAppearsTransparent = true
+        iconWindow.collectionBehavior = [.canJoinAllSpaces, .transient]
         
-        // Position window at Apple menu location
-        let screenFrame = NSScreen.main?.frame ?? .zero
-        iconWindow.setFrameOrigin(NSPoint(x: 16, y: screenFrame.height - 32))
+        // Calculate pos relative to menu bar
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let appleMenuBarHeight = screen.frame.height - screen.visibleFrame.height - (screen.visibleFrame.origin.y - screen.frame.origin.y) - 1
+        
+        // Position the iconWindow
+        let xPosition: CGFloat = 16 + screen.frame.minX
+        let yPosition: CGFloat = screen.frame.minY + screen.frame.height - appleMenuBarHeight/2 - 12
+        
+        iconWindow.setFrameOrigin(NSPoint(x: xPosition, y: yPosition))
         
         // Set initial icon
         updateActiveAppIcon()
