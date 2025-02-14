@@ -10,6 +10,7 @@ import Cocoa
 class AppDelegate: NSObject, NSApplicationDelegate {
     var iconWindow: NSWindow!
     var workspaceNotificationObserver: Any?
+    var screenParametersObserver: Any?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Setup workspace notifications
@@ -19,6 +20,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: nil) { [weak self] notification in
                 self?.updateActiveAppIcon()
+        }
+        
+        // Add screen observer
+        screenParametersObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: nil) { [weak self] _ in
+                self?.updateWindowPosition()
         }
         
         // Create floating window for icon
@@ -36,18 +45,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         iconWindow.ignoresMouseEvents = true
         iconWindow.collectionBehavior = [.canJoinAllSpaces, .transient]
         
-        // Calculate pos relative to menu bar
-        let screen = NSScreen.main ?? NSScreen.screens[0]
+        updateWindowPosition()
+        
+        // Set initial icon
+        updateActiveAppIcon()
+    }
+    
+    func updateWindowPosition() {
+        guard let screen = NSScreen.main else { return }
         let appleMenuBarHeight = screen.frame.height - screen.visibleFrame.height - (screen.visibleFrame.origin.y - screen.frame.origin.y) - 1
         
-        // Position the iconWindow
         let xPosition: CGFloat = 16 + screen.frame.minX
         let yPosition: CGFloat = screen.frame.minY + screen.frame.height - appleMenuBarHeight/2 - 12
         
         iconWindow.setFrameOrigin(NSPoint(x: xPosition, y: yPosition))
-        
-        // Set initial icon
-        updateActiveAppIcon()
     }
     
     func updateActiveAppIcon() {
