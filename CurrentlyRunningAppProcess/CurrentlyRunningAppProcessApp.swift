@@ -62,51 +62,80 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func updateActiveAppIcon() {
-        guard let frontmostApp = NSWorkspace.shared.frontmostApplication,
-              let appIcon = frontmostApp.icon else { return }
+        guard let frontmostApp = NSWorkspace.shared.frontmostApplication else { return }
         
-        let imageView = NSImageView(frame: NSRect(x: 0, y: 0, width: 22, height: 22))
+        // Create container view with white background - centered in the 24x24 window
+        let containerView = NSView(frame: NSRect(x: 2.5, y: 2.5, width: 19, height: 19)) // Centered in 24x24 window
+        containerView.wantsLayer = true
+        containerView.layer?.backgroundColor = NSColor.white.cgColor
+        containerView.layer?.cornerRadius = 4.5
+        containerView.layer?.shadowColor = NSColor.black.withAlphaComponent(0.25).cgColor
+        containerView.layer?.shadowOffset = NSSize(width: 0, height: -0.5)
+        containerView.layer?.shadowOpacity = 1.0
+        containerView.layer?.shadowRadius = 0.5
+        
+        let imageView = NSImageView(frame: NSRect(x: 2.5, y: 2.5, width: 14, height: 14))
         imageView.imageScaling = .scaleProportionallyDown
         imageView.wantsLayer = true
         
-        // Add subtle shadow
-        imageView.layer?.shadowColor = NSColor.black.withAlphaComponent(0.2).cgColor
-        imageView.layer?.shadowOffset = NSSize(width: 0, height: 0)
-        imageView.layer?.shadowOpacity = 1.0
-        imageView.layer?.shadowRadius = 1.0
+        // Try loading SVG icon
+        if let bundlePath = Bundle.main.resourcePath {
+            let appName = frontmostApp.localizedName?.lowercased() ?? ""
+            let iconName = ":\(appName):.svg"
+            let svgPath = (bundlePath as NSString).appendingPathComponent(iconName)
+            
+            if let svgImage = NSImage(contentsOfFile: svgPath) {
+                imageView.image = svgImage
+                containerView.addSubview(imageView)
+                
+                // Create a wrapper view to center the container
+                let wrapperView = NSView(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
+                wrapperView.addSubview(containerView)
+                iconWindow.contentView = wrapperView
+                iconWindow.orderFront(nil)
+                return
+            }
+        }
         
-        // Apply grayscale filter with adaptive brightness
-        if let cgImage = appIcon.cgImage(forProposedRect: nil, context: nil, hints: nil),
+        // For system icons, use the full window size
+        imageView.frame = NSRect(x: 1, y: 1, width: 22, height: 22) // Slightly inset
+        
+        // Only if SVG not found, use system icon with effects
+        if let appIcon = frontmostApp.icon,
+           let cgImage = appIcon.cgImage(forProposedRect: nil, context: nil, hints: nil),
            let filter = CIFilter(name: "CIColorControls") {
             let ciImage = CIImage(cgImage: cgImage)
             filter.setValue(ciImage, forKey: kCIInputImageKey)
-            filter.setValue(1, forKey: kCIInputSaturationKey) // Remove color
+            filter.setValue(1, forKey: kCIInputSaturationKey)
             
-            // Adjust brightness and contrast based on appearance
             let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             if isDarkMode {
-                filter.setValue(1.4, forKey: kCIInputContrastKey)   // Increase contrast in dark mode
-                filter.setValue(0.2, forKey: kCIInputBrightnessKey) // Lighter in dark mode
+                filter.setValue(1.4, forKey: kCIInputContrastKey)
+                filter.setValue(0.2, forKey: kCIInputBrightnessKey)
             } else {
-                filter.setValue(1.2, forKey: kCIInputContrastKey)   // Keep original contrast in light mode
-                filter.setValue(0.1, forKey: kCIInputBrightnessKey) // Very slightly darker in light mode
+                filter.setValue(1.2, forKey: kCIInputContrastKey)
+                filter.setValue(0.1, forKey: kCIInputBrightnessKey)
             }
             
             if let outputImage = filter.outputImage {
                 let context = CIContext()
                 if let resultCGImage = context.createCGImage(outputImage, from: outputImage.extent) {
+                    imageView.frame = NSRect(x: 0, y: 0, width: 22, height: 22) // Full size for system icons
                     imageView.image = NSImage(cgImage: resultCGImage, size: appIcon.size)
                 } else {
-                    imageView.image = appIcon // Fallback to original if conversion fails
+                    imageView.image = appIcon
                 }
             } else {
-                imageView.image = appIcon // Fallback to original if filter fails
+                imageView.image = appIcon
             }
         } else {
-            imageView.image = appIcon // Fallback to original if conversion fails
+            imageView.image = frontmostApp.icon
         }
         
-        iconWindow.contentView = imageView
+        // Create wrapper for system icon too
+        let wrapperView = NSView(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
+        wrapperView.addSubview(imageView)
+        iconWindow.contentView = wrapperView
         iconWindow.orderFront(nil)
     }
 }
