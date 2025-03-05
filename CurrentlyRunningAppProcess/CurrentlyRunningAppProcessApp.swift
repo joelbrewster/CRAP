@@ -7,12 +7,22 @@
 
 import Cocoa
 
+@main
 class AppDelegate: NSObject, NSApplicationDelegate {
     var iconWindow: NSWindow!
     var workspaceNotificationObserver: Any?
     var screenParametersObserver: Any?
     
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.run()
+    }
+    
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        
         // Setup workspace notifications
         let workspace = NSWorkspace.shared
         workspaceNotificationObserver = workspace.notificationCenter.addObserver(
@@ -64,8 +74,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func updateActiveAppIcon() {
         guard let frontmostApp = NSWorkspace.shared.frontmostApplication else { return }
         
-        // Create container view with white background - centered in the 24x24 window
-        let containerView = NSView(frame: NSRect(x: 2.5, y: 2.5, width: 19, height: 19)) // Centered in 24x24 window
+        // Create default white container view
+        let containerView = NSView(frame: NSRect(x: 2.5, y: 2.5, width: 19, height: 19))
         containerView.wantsLayer = true
         containerView.layer?.backgroundColor = NSColor.white.cgColor
         containerView.layer?.cornerRadius = 4.5
@@ -78,75 +88,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         imageView.imageScaling = .scaleProportionallyDown
         imageView.wantsLayer = true
         
-        // Try loading SVG icon
+        // Try loading SVG icon first
         if let bundlePath = Bundle.main.resourcePath {
             let appName = frontmostApp.localizedName?.lowercased() ?? ""
             let iconName = ":\(appName):.svg"
             let svgPath = (bundlePath as NSString).appendingPathComponent(iconName)
+            let fallbackPath = (bundlePath as NSString).appendingPathComponent("add.svg")
             
-            if let svgImage = NSImage(contentsOfFile: svgPath) {
-                imageView.image = svgImage
-                containerView.addSubview(imageView)
-                
-                // Create a wrapper view to center the container
-                let wrapperView = NSView(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
-                wrapperView.addSubview(containerView)
-                iconWindow.contentView = wrapperView
-                iconWindow.orderFront(nil)
-                return
-            }
-        }
-        
-        // For system icons, use the full window size
-        imageView.frame = NSRect(x: 1, y: 1, width: 22, height: 22) // Slightly inset
-        
-        // Only if SVG not found, use system icon with effects
-        if let appIcon = frontmostApp.icon,
-           let cgImage = appIcon.cgImage(forProposedRect: nil, context: nil, hints: nil),
-           let filter = CIFilter(name: "CIColorControls") {
-            let ciImage = CIImage(cgImage: cgImage)
-            filter.setValue(ciImage, forKey: kCIInputImageKey)
-            filter.setValue(1, forKey: kCIInputSaturationKey)
-            
-            let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            if isDarkMode {
-                filter.setValue(1.4, forKey: kCIInputContrastKey)
-                filter.setValue(0.2, forKey: kCIInputBrightnessKey)
+            // If app-specific SVG exists, use it, otherwise use fallback
+            if FileManager.default.fileExists(atPath: svgPath) {
+                imageView.image = NSImage(contentsOfFile: svgPath)
             } else {
-                filter.setValue(1.2, forKey: kCIInputContrastKey)
-                filter.setValue(0.1, forKey: kCIInputBrightnessKey)
+                // Always use fallback icon if no app-specific icon exists
+                imageView.image = NSImage(contentsOfFile: fallbackPath)
             }
             
-            if let outputImage = filter.outputImage {
-                let context = CIContext()
-                if let resultCGImage = context.createCGImage(outputImage, from: outputImage.extent) {
-                    imageView.frame = NSRect(x: 0, y: 0, width: 22, height: 22) // Full size for system icons
-                    imageView.image = NSImage(cgImage: resultCGImage, size: appIcon.size)
-                } else {
-                    imageView.image = appIcon
-                }
-            } else {
-                imageView.image = appIcon
-            }
-        } else {
-            imageView.image = frontmostApp.icon
+            containerView.addSubview(imageView)
+            let wrapperView = NSView(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
+            wrapperView.addSubview(containerView)
+            iconWindow.contentView = wrapperView
+            iconWindow.orderFront(nil)
+            return
         }
-        
-        // Create wrapper for system icon too
-        let wrapperView = NSView(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
-        wrapperView.addSubview(imageView)
-        iconWindow.contentView = wrapperView
-        iconWindow.orderFront(nil)
-    }
-}
-
-@main
-struct CurrentlyRunningAppProcessApp {
-    static func main() {
-        let app = NSApplication.shared
-        app.setActivationPolicy(.accessory) // This hides the Dock icon
-        let delegate = AppDelegate()
-        app.delegate = delegate
-        app.run()
     }
 }
