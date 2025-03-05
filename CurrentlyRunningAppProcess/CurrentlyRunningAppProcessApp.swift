@@ -80,7 +80,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
            let filter = CIFilter(name: "CIColorControls") {
             let ciImage = CIImage(cgImage: cgImage)
             filter.setValue(ciImage, forKey: kCIInputImageKey)
-            filter.setValue(0.0, forKey: kCIInputSaturationKey) // Remove color
+            filter.setValue(1, forKey: kCIInputSaturationKey) // Remove color
             
             // Adjust brightness and contrast based on appearance
             let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
