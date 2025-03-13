@@ -7,22 +7,12 @@
 
 import Cocoa
 
-@main
 class AppDelegate: NSObject, NSApplicationDelegate {
     var iconWindow: NSWindow!
     var workspaceNotificationObserver: Any?
     var screenParametersObserver: Any?
     
-    static func main() {
-        let app = NSApplication.shared
-        let delegate = AppDelegate()
-        app.delegate = delegate
-        app.run()
-    }
-    
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
-        
         // Setup workspace notifications
         let workspace = NSWorkspace.shared
         workspaceNotificationObserver = workspace.notificationCenter.addObserver(
@@ -48,7 +38,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         
-        iconWindow.level = .statusBar
+        iconWindow.level = .submenu
         iconWindow.backgroundColor = .clear
         iconWindow.isOpaque = false
         iconWindow.hasShadow = false
@@ -72,43 +62,63 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func updateActiveAppIcon() {
-        guard let frontmostApp = NSWorkspace.shared.frontmostApplication else { return }
+        guard let frontmostApp = NSWorkspace.shared.frontmostApplication,
+              let appIcon = frontmostApp.icon else { return }
         
-        // Create default white container view
-        let containerView = NSView(frame: NSRect(x: 2.5, y: 2.5, width: 19, height: 19))
-        containerView.wantsLayer = true
-        containerView.layer?.backgroundColor = NSColor.white.cgColor
-        containerView.layer?.cornerRadius = 4.5
-        containerView.layer?.shadowColor = NSColor.black.withAlphaComponent(0.25).cgColor
-        containerView.layer?.shadowOffset = NSSize(width: 0, height: -0.5)
-        containerView.layer?.shadowOpacity = 1.0
-        containerView.layer?.shadowRadius = 0.5
-        
-        let imageView = NSImageView(frame: NSRect(x: 2.5, y: 2.5, width: 14, height: 14))
+        let imageView = NSImageView(frame: NSRect(x: 0, y: 0, width: 22, height: 22))
         imageView.imageScaling = .scaleProportionallyDown
         imageView.wantsLayer = true
         
-        // Try loading SVG icon first
-        if let bundlePath = Bundle.main.resourcePath {
-            let appName = frontmostApp.localizedName?.lowercased() ?? ""
-            let iconName = ":\(appName):.svg"
-            let svgPath = (bundlePath as NSString).appendingPathComponent(iconName)
-            let fallbackPath = (bundlePath as NSString).appendingPathComponent("add.svg")
+        // Add subtle shadow
+        imageView.layer?.shadowColor = NSColor.black.withAlphaComponent(0.2).cgColor
+        imageView.layer?.shadowOffset = NSSize(width: 0, height: 0)
+        imageView.layer?.shadowOpacity = 1.0
+        imageView.layer?.shadowRadius = 1.0
+        
+        // Apply grayscale filter with adaptive brightness
+        if let cgImage = appIcon.cgImage(forProposedRect: nil, context: nil, hints: nil),
+           let filter = CIFilter(name: "CIColorControls") {
+            let ciImage = CIImage(cgImage: cgImage)
+            filter.setValue(ciImage, forKey: kCIInputImageKey)
+            filter.setValue(1, forKey: kCIInputSaturationKey) // Remove color
             
-            // If app-specific SVG exists, use it, otherwise use fallback
-            if FileManager.default.fileExists(atPath: svgPath) {
-                imageView.image = NSImage(contentsOfFile: svgPath)
+            // Adjust brightness and contrast based on appearance
+            let isDarkMode = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            if isDarkMode {
+                filter.setValue(1.4, forKey: kCIInputContrastKey)   // Increase contrast in dark mode
+                filter.setValue(0.2, forKey: kCIInputBrightnessKey) // Lighter in dark mode
             } else {
-                // Always use fallback icon if no app-specific icon exists
-                imageView.image = NSImage(contentsOfFile: fallbackPath)
+                filter.setValue(1.2, forKey: kCIInputContrastKey)   // Keep original contrast in light mode
+                filter.setValue(0.1, forKey: kCIInputBrightnessKey) // Very slightly darker in light mode
             }
             
-            containerView.addSubview(imageView)
-            let wrapperView = NSView(frame: NSRect(x: 0, y: 0, width: 24, height: 24))
-            wrapperView.addSubview(containerView)
-            iconWindow.contentView = wrapperView
-            iconWindow.orderFront(nil)
-            return
+            if let outputImage = filter.outputImage {
+                let context = CIContext()
+                if let resultCGImage = context.createCGImage(outputImage, from: outputImage.extent) {
+                    imageView.image = NSImage(cgImage: resultCGImage, size: appIcon.size)
+                } else {
+                    imageView.image = appIcon // Fallback to original if conversion fails
+                }
+            } else {
+                imageView.image = appIcon // Fallback to original if filter fails
+            }
+        } else {
+            imageView.image = appIcon // Fallback to original if conversion fails
         }
+        
+        iconWindow.contentView = imageView
+        iconWindow.orderFront(nil)
     }
 }
+
+@main
+struct CurrentlyRunningAppProcessApp {
+    static func main() {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory) // This hides the Dock icon
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.run()
+    }
+}
+
