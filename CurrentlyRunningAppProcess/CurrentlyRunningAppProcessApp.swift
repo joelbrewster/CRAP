@@ -38,7 +38,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         
-        iconWindow.level = .submenu
+        iconWindow.level = .statusBar
         iconWindow.backgroundColor = .clear
         iconWindow.isOpaque = false
         iconWindow.hasShadow = false
